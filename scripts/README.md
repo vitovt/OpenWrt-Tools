@@ -56,6 +56,21 @@ Remove two MAC addresses from the whitelist on interface 1:
 ./manage_mac.sh -r -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
 ```
 
+Also it is possible to use multiple interfaces
+
+### Add Multiple MAC Addresses to Multiple Interfaces
+Add two MAC addresses to the list on interfaces 0 and 1:
+```
+./manage_mac.sh -i 0 -i 1 -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+```
+
+### List All MAC Addresses on Multiple Interfaces
+List all MAC addresses allowed on interfaces 0 and 1:
+
+```
+./manage_mac.sh -i 0 -i 1 -l
+```
+
 ## License
 
 This script is redistributed under the MIT License. Feel free to modify and distribute it.
