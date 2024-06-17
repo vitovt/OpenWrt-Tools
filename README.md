@@ -13,11 +13,6 @@ Manage white/black-list MAC addresses on the wireless interface
 
 **Sample usage:**
 
-List MACs on interface 1
-```
-./manage_mac.sh -l
-```
-
 Add MAC to list on **default** interface 0
 ```
 ./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF
@@ -27,6 +22,17 @@ Remove two MACs from list on interface 0
 ```
 ./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
 ```
+
+Can be used like **Parental control** for Openwrt wifi router:
+```
+root@OpenWrt:/# cat /etc/crontabs/root 
+#Turn off wifi for children at 21:30 and turn back at 5:00
+30 21 * * * /etc/manage_mac.sh -r -i 0 -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+0  5 * * * /etc/manage_mac.sh -a -i 0 -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+```
+
+
+For more detailed options see [script README](scripts/README.md)
 
 ## Contributing
 
