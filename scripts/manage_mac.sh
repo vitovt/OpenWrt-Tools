@@ -1,5 +1,14 @@
 #!/bin/sh
 
+#This script is a part of the OpenWRT Tools collection, designed to help you
+#manage MAC addresses on the white/blacklist of wireless interface of 
+#your OpenWRT router.
+#You can add, remove, check, and list MAC addresses in the whitelist/blacklist,
+#on specific wireless interface ensuring efficient network management and control.
+
+#© (с)2024 Vitovt ©
+#This script is redistributed under MIT License, feel free to modify it.
+
 # Default values
 IFACE=0
 MAC_ADDRESSES=""
@@ -7,6 +16,7 @@ ACTION=""
 
 # Print help message
 print_help() {
+    echo "Manage MAC white/blacklist addresses of the wireless interface."
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
     echo "  -m, --mac MAC_ADDRESS     Specify the MAC address for the action (can be used multiple times for multiple MACs)"

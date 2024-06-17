@@ -6,6 +6,9 @@ A collection of scripts and utilities to enhance the functionality and manageabi
 - [Manage mac](#manage-mac)
 
 ### Manage mac
+
+[./manage_mac.sh](scripts/manage_mac.sh)
+
 Manage white/black-list MAC addresses on the wireless interface
 
 **Sample usage:**
@@ -15,14 +18,14 @@ List MACs on interface 1
 ./manage_mac.sh -l
 ```
 
-Add MACs to list on **default** interface 0
+Add MAC to list on **default** interface 0
 ```
-./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66 -a
+./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF
 ```
 
-Remove MACs from list on interface 0
+Remove two MACs from list on interface 0
 ```
-./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66 -a
+./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
 ```
 
 ## Contributing
