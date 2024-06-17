@@ -2,9 +2,28 @@
 
 A collection of scripts and utilities to enhance the functionality and manageability of your OpenWRT routers. Various tools, including network configuration helpers, firewall rule management scripts, and other useful utilities for OpenWRT administrators.
 
-
 ## List of Tools
-... to be continued ...
+- [Manage mac](#manage-mac)
+
+### Manage mac
+Manage white/black-list MAC addresses on the wireless interface
+
+**Sample usage:**
+
+List MACs on interface 1
+```
+./manage_mac.sh -l
+```
+
+Add MACs to list on **default** interface 0
+```
+./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66 -a
+```
+
+Remove MACs from list on interface 0
+```
+./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66 -a
+```
 
 ## Contributing
 
