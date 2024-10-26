@@ -1,15 +1,32 @@
+# Manage MAC and Host
+
+A collection of scripts to manage MAC addresses and hostnames on the whitelist/blacklist of a wireless interface on your OpenWRT router. This enables efficient network management and control by allowing easy addition, removal, checking, and listing of MAC addresses or hostnames on specified interfaces.
+
+## Table of Contents
+- [Manage MAC](#manage-mac)
+  - [Usage](#usage)
+    - [Options](#options)
+    - [Examples](#examples)
+- [Manage Host](#manage-host)
+  - [Usage](#usage-1)
+    - [Options](#options-1)
+    - [Examples](#examples-1)
+- [License](#license)
+
+---
+
 # Manage MAC
 
-**Manage MAC Addresses on single list (it could be white or black) on wireless interface**
+**Manage MAC Addresses on a whitelist or blacklist on the wireless interface**
 
-This script is designed to help you manage MAC addresses on the whitelist/blacklist of the wireless interface of your OpenWRT router. You can add, remove, check, and list MAC addresses on a specific wireless interface, ensuring efficient network management and control.
+This script is designed to help you manage MAC addresses on the whitelist/blacklist of the wireless interface of your OpenWRT router. You can add, remove, check, and list MAC addresses on a specific wireless interface.
 
 ## Usage
 
 ### Options
 Here are all the available options for the script:
 
-```
+```sh
 ./manage_mac.sh -h
 ```
 - **-m, --mac MAC_ADDRESS**: Specify the MAC address for the action. This option can be used multiple times to specify multiple MAC addresses.
@@ -20,59 +37,134 @@ Here are all the available options for the script:
 - **-i, --iface IFACE_NUM**: Specify the interface number (default is 0).
 - **-h, --help**: Display the help message with usage information.
 
-### List All Allowed/Blacklisted MAC Addresses
-List all MAC addresses allowed on interface 1:
+### Examples
+
+- **List All Allowed/Blacklisted MAC Addresses**  
+  List all MAC addresses allowed on interface 1:
+  ```sh
+  ./manage_mac.sh -i 1 -l
+  ```
+
+- **Add MAC Addresses to the List on Default Interface 0**  
+  To add a MAC address to the whitelist on the default interface (0):
+  ```sh
+  ./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF
+  ```
+
+- **Remove MAC Addresses from the List on Interface 0**  
+  To remove a MAC address from the whitelist on interface 0:
+  ```sh
+  ./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF
+  ```
+
+- **Check if MAC Address is in the List on Default Interface 0**  
+  To check if specific MAC addresses are in the whitelist on the default interface (0):
+  ```sh
+  ./manage_mac.sh -c -m AA:BB:CC:DD:EE:FF
+  ```
+
+- **Add Multiple MAC Addresses**  
+  Add two MAC addresses to the whitelist on the default interface (0):
+  ```sh
+  ./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+  ```
+
+- **Remove Multiple MAC Addresses**  
+  Remove two MAC addresses from the whitelist on interface 1:
+  ```sh
+  ./manage_mac.sh -r -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+  ```
+
+- **Add Multiple MAC Addresses to Multiple Interfaces**  
+  Add two MAC addresses to the list on interfaces 0 and 1:
+  ```sh
+  ./manage_mac.sh -i 0 -i 1 -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
+  ```
+
+- **List All MAC Addresses on Multiple Interfaces**  
+  List all MAC addresses allowed on interfaces 0 and 1:
+  ```sh
+  ./manage_mac.sh -i 0 -i 1 -l
+  ```
+
+---
+
+# Manage Host
+
+**Manage Hostnames on a whitelist or blacklist on the wireless interface**
+
+This script is designed to help you manage hostnames on the whitelist/blacklist of the wireless interface of your OpenWRT router. The script maps hostnames to their MAC addresses using the DHCP configuration, allowing you to add, remove, check, and list hostnames on specified interfaces.
+
+## Usage
+
+### Options
+Here are all the available options for the script:
+
 ```sh
-./manage_mac.sh -i 1 -l
+./manage_host.sh -h
 ```
+- **-n, --name HOSTNAME**: Specify the hostname for the action. This option can be used multiple times to specify multiple hostnames.
+- **-r, --remove**: Remove the specified hostname(s) from the whitelist.
+- **-a, --add**: Add the specified hostname(s) to the whitelist.
+- **-c, --check**: Check if the specified hostname(s) are in the whitelist.
+- **-l, --list**: List all allowed hostnames.
+- **-i, --iface IFACE_NUM**: Specify the interface number (default is 0).
+- **-h, --help**: Display the help message with usage information.
 
-### Add MAC Addresses to the List on Default Interface 0
-To add MAC address to the whitelist on the default interface (0):
-```sh
-./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF
-```
+### Examples
 
-### Remove MAC Addresses from the List on Interface 0
-To remove MAC address from the whitelist on interface 0:
-```sh
-./manage_mac.sh -r -i 0 -m AA:BB:CC:DD:EE:FF
-```
+- **List All Allowed/Blacklisted Hostnames**  
+  List all hostnames allowed on interface 1:
+  ```sh
+  ./manage_host.sh -i 1 -l
+  ```
 
-### Check if MAC Address is in the List on Default Interface 0
-To check if specific MAC addresses are in the whitelist on the default interface (0):
-```sh
-./manage_mac.sh -c -m AA:BB:CC:DD:EE:FF
-```
+- **Add Hostnames to the List on Default Interface 0**  
+  To add a hostname to the whitelist on the default interface (0):
+  ```sh
+  ./manage_host.sh -a -n TERMPC
+  ```
 
-### Add Multiple MAC Addresses
-Add two MAC addresses to the whitelist on the default interface (0):
-```sh
-./manage_mac.sh -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
-```
+- **Remove Hostnames from the List on Interface 0**  
+  To remove a hostname from the whitelist on interface 0:
+  ```sh
+  ./manage_host.sh -r -i 0 -n TERMPC
+  ```
 
-### Remove Multiple MAC Addresses
-Remove two MAC addresses from the whitelist on interface 1:
-```sh
-./manage_mac.sh -r -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
-```
+- **Check if Hostname is in the List on Default Interface 0**  
+  To check if specific hostnames are in the whitelist on the default interface (0):
+  ```sh
+  ./manage_host.sh -c -n TERMPC
+  ```
 
-Also it is possible to use multiple interfaces
+- **Add Multiple Hostnames**  
+  Add two hostnames to the whitelist on the default interface (0):
+  ```sh
+  ./manage_host.sh -a -n TERMPC -n valentynapc
+  ```
 
-### Add Multiple MAC Addresses to Multiple Interfaces
-Add two MAC addresses to the list on interfaces 0 and 1:
-```
-./manage_mac.sh -i 0 -i 1 -a -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
-```
+- **Remove Multiple Hostnames**  
+  Remove two hostnames from the whitelist on interface 1:
+  ```sh
+  ./manage_host.sh -r -i 1 -n TERMPC -n valentynapc
+  ```
 
-### List All MAC Addresses on Multiple Interfaces
-List all MAC addresses allowed on interfaces 0 and 1:
+- **Add Multiple Hostnames to Multiple Interfaces**  
+  Add two hostnames to the list on interfaces 0 and 1:
+  ```sh
+  ./manage_host.sh -i 0 -i 1 -a -n TERMPC -n valentynapc
+  ```
 
-```
-./manage_mac.sh -i 0 -i 1 -l
-```
+- **List All Hostnames on Multiple Interfaces**  
+  List all hostnames allowed on interfaces 0 and 1:
+  ```sh
+  ./manage_host.sh -i 0 -i 1 -l
+  ```
+
+---
 
 ## License
 
-This script is redistributed under the MIT License. Feel free to modify and distribute it.
+These scripts are redistributed under the MIT License. Feel free to modify and distribute them.
 
 **© 2024 Vitovt ©**
