@@ -4,6 +4,7 @@ A collection of scripts and utilities to enhance the functionality and manageabi
 
 ## List of Tools
 - [Manage mac](#manage-mac)
+- [Manage host](#manage-host)
 
 ### Manage mac
 
@@ -31,6 +32,31 @@ root@OpenWrt:/# cat /etc/crontabs/root
 0  5 * * * /etc/manage_mac.sh -a -i 0 -i 1 -m AA:BB:CC:DD:EE:FF -m 11:22:33:44:55:66
 ```
 
+### Manage host
+
+[./manage_host.sh](scripts/manage_host.sh)
+
+Manage white/black-list hostnames on the wireless interface by mapping them to their respective MAC addresses in the DHCP configuration.
+
+**Sample usage:**
+
+Add hostname to list on **default** interface 0
+```
+./manage_host.sh -a -n TERMPC
+```
+
+Remove two hostnames from list on interface 0
+```
+./manage_host.sh -r -i 0 -n TERMPC -n valentynapc
+```
+
+Can be used like **Parental control** for Openwrt wifi router:
+```
+root@OpenWrt:/# cat /etc/crontabs/root 
+#Turn off wifi for children’s devices at 21:30 and turn back at 5:00
+30 21 * * * /etc/manage_host.sh -r -i 0 -i 1 -n TERMPC -n valentynapc
+0  5 * * * /etc/manage_host.sh -a -i 0 -i 1 -n TERMPC -n valentynapc
+```
 
 For more detailed options see [script README](scripts/README.md)
 
