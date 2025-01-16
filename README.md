@@ -6,9 +6,13 @@ A collection of scripts and utilities to enhance the functionality and manageabi
 - [Manage mac](#manage-mac)
 - [Manage host](#manage-host)
 
+- [Contributing](#contributing)
+- [License](#license)
+
 ### Manage mac
 
-[./manage_mac.sh](scripts/manage_mac.sh)
+[./manage_mac.sh](manage_mac.sh)
+[Full documentation](manage_mac.md)
 
 Manage white/black-list MAC addresses on the wireless interface
 
@@ -35,6 +39,7 @@ root@OpenWrt:/# cat /etc/crontabs/root
 ### Manage host
 
 [./manage_host.sh](scripts/manage_host.sh)
+[Full documentation](manage_host.md)
 
 Manage white/black-list hostnames on the wireless interface by mapping them to their respective MAC addresses in the DHCP configuration.
 
@@ -58,7 +63,11 @@ root@OpenWrt:/# cat /etc/crontabs/root
 0  5 * * * /etc/manage_host.sh -a -i 0 -i 1 -n TERMPC -n valentynapc
 ```
 
-For more detailed options see [script README](scripts/README.md)
+---
+
+For more detailed options see **README** of each script.
+
+---
 
 ## Contributing
 
