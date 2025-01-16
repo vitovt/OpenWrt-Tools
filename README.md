@@ -5,6 +5,7 @@ A collection of scripts and utilities to enhance the functionality and manageabi
 ## List of Tools
 - [Manage mac](#manage-mac)
 - [Manage host](#manage-host)
+- [Firewall Rules Manager](#firewall-rules-manager)
 
 - [Contributing](#contributing)
 - [License](#license)
@@ -61,6 +62,30 @@ root@OpenWrt:/# cat /etc/crontabs/root
 #Turn off wifi for children’s devices at 21:30 and turn back at 5:00
 30 21 * * * /etc/manage_host.sh -r -i 0 -i 1 -n TERMPC -n valentynapc
 0  5 * * * /etc/manage_host.sh -a -i 0 -i 1 -n TERMPC -n valentynapc
+```
+
+### Firewall Rules Manager
+
+[./firewall_rules.sh](scripts/firewall_rules.sh)
+[Full documentation](firewall_rules.md)
+
+Manage OpenWrt firewall rules by their name.
+
+#### Usage:
+```bash
+./firewall_rules.sh <enable|disable|status|list> <rule_name>
+```
+
+- `enable`: Enable a specific firewall rule by its name.
+- `disable`: Disable a specific firewall rule by its name.
+- `status`: Check if a rule is enabled or disabled.
+- `list`: Display all firewall rules with their order numbers and names.
+
+**Example:**
+```bash
+./firewall_rules.sh list
+./firewall_rules.sh enable Allow-SSH
+./firewall_rules.sh status Allow-SSH
 ```
 
 ---
