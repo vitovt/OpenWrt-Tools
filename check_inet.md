@@ -1,6 +1,6 @@
 # Network Connectivity Checker (`netcheck.sh`)
 
-This script monitors the IPv4 and IPv6 connectivity of an OpenWrt router and performs actions to restore connectivity if issues are detected. It handles SLTE (modem) interface resets, USB modem power cycling, and partial failure scenarios.
+This script monitors the IPv4 and IPv6 connectivity of an OpenWrt router and performs actions to restore connectivity if issues are detected. It handles SLTE (modem) interface resets, USB modem power cycling, and partial failure scenarios. The script uses a **lock file** to prevent overlapping executions.
 
 ---
 
@@ -10,6 +10,7 @@ This script monitors the IPv4 and IPv6 connectivity of an OpenWrt router and per
 - **SLTE Reconnection**: Restarts the SLTE interface when connectivity issues are detected.
 - **USB Modem Reset**: Power-cycles USB modems if connectivity cannot be restored by SLTE reconnection.
 - **Partial Failure Handling**: Tracks partial failures and reconnects after a configurable number of failed checks.
+- **Lock File Protection**: Prevents multiple instances of the script from running simultaneously.
 - **Logging**: Logs actions and connectivity status to the system logger (`logger`).
 
 ---
@@ -63,9 +64,19 @@ This script monitors the IPv4 and IPv6 connectivity of an OpenWrt router and per
   - Sleep after SLTE reconnect: `140 seconds`
   - Sleep after USB modem reset: `60 seconds`
 
+- **Lock File**:
+  - The script uses `/tmp/netcheck.lock` to prevent multiple instances from running simultaneously.
+
 ---
 
 ## Error Handling
+
+### Lock File
+
+- If another instance is running, the script will log a message and exit:
+  ```text
+  Another instance of netcheck.sh is already running. Exiting.
+  ```
 
 ### Connectivity Status Logging
 
@@ -119,7 +130,13 @@ netcheck: Modem power-cycled, waiting 60s...
      * * * * * /path/to/netcheck.sh
      ```
 
-2. **Connectivity Targets**:
+2. **Lock File Issues**:
+   - If the script fails to remove the lock file due to an ungraceful exit, delete it manually:
+     ```bash
+     rm -f /tmp/netcheck.lock
+     ```
+
+3. **Connectivity Targets**:
    - Test the targets manually using `ping` and `ping6` to ensure they are reachable.
 
 ---
@@ -129,3 +146,4 @@ netcheck: Modem power-cycled, waiting 60s...
 These scripts are redistributed under the MIT License. Feel free to modify and distribute them.
 
 **© 2024 Vitovt ©**
+

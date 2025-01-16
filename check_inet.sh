@@ -9,6 +9,19 @@
 #
 # This ensures it runs every minute.
 
+# Lock file location
+LOCK_FILE="/tmp/netcheck.lock"
+
+# Check if another instance is running
+if [ -f "$LOCK_FILE" ]; then
+  logger -t netcheck "Another instance of netcheck.sh is already running. Exiting."
+  exit 1
+fi
+
+# Create the lock file and ensure it's removed on script exit
+trap 'rm -f "$LOCK_FILE"; exit' INT TERM EXIT
+echo $$ > "$LOCK_FILE"
+
 #sleep after slte_reconnect
 SLEEP1=140
 #sleep after modem hardware reset
@@ -86,6 +99,7 @@ if [ "$INFO4" -eq 1 ] && [ "$INFO6" -eq 1 ]; then
   # Reset partial-failure counter
   echo 0 > "$COUNTER_FILE"
   logger -t netcheck "Both IPv4 and IPv6 are reachable, counter reset to 0. Nothing to do."
+  rm -f "$LOCK_FILE"
   exit 0
 fi
 
@@ -102,16 +116,18 @@ if [ "$INFO4" -eq 0 ] && [ "$INFO6" -eq 0 ]; then
   if [ "$INFO4" -eq 1 ] && [ "$INFO6" -eq 1 ]; then
     logger -t netcheck "Connectivity restored after SLTE reconnect."
     echo 0 > "$COUNTER_FILE"
+    rm -f "$LOCK_FILE"
     exit 0
   else
     logger -t netcheck "Still no connectivity after SLTE reconnect => resetting USB modem."
     reset_usb_1
     reset_usb_2
-    logger -t netcheck "Modem powered off/on, waiting 60s..."
+    logger -t netcheck "Modem powered off/on, waiting $SLEEP2 s..."
     sleep $SLEEP2
     logger -t netcheck "Restarting odhcpd..."
     /etc/init.d/odhcpd restart
     echo 0 > "$COUNTER_FILE"
+    rm -f "$LOCK_FILE"
     exit 0
   fi
 fi
@@ -124,6 +140,7 @@ logger -t netcheck "Partial failure (one of IPv4 or IPv6 down). New count=$PARTI
 if [ "$PARTIAL_FAIL_COUNT" -lt 3 ]; then
   echo "$PARTIAL_FAIL_COUNT" > "$COUNTER_FILE"
   logger -t netcheck "Partial failure count < 3, not taking action yet."
+  rm -f "$LOCK_FILE"
   exit 0
 fi
 
@@ -140,16 +157,17 @@ INFO6="$(check_ipv6_pingable "$IPV6_TEST")"
 if [ "$INFO4" -eq 1 ] && [ "$INFO6" -eq 1 ]; then
   logger -t netcheck "Connectivity restored after partial-failure reconnect."
   echo 0 > "$COUNTER_FILE"
-  exit 0
 else
   logger -t netcheck "Still failing after SLTE reconnect => resetting USB modem."
   reset_usb_1
   reset_usb_2
-  logger -t netcheck "Modem power-cycled, waiting 60s..."
+  logger -t netcheck "Modem power-cycled, waiting $SLEEP2 s..."
   sleep $SLEEP2
   logger -t netcheck "Restarting odhcpd..."
   /etc/init.d/odhcpd restart
   echo 0 > "$COUNTER_FILE"
-  exit 0
 fi
+
+rm -f "$LOCK_FILE"
+exit 0
 
