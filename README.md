@@ -6,6 +6,7 @@ A collection of scripts and utilities to enhance the functionality and manageabi
 - [Manage mac](#manage-mac)
 - [Manage host](#manage-host)
 - [Firewall Rules Manager](#firewall-rules-manager)
+- [Network Connectivity Checker](#network-connectivity-checker)
 
 - [Contributing](#contributing)
 - [License](#license)
@@ -39,7 +40,7 @@ root@OpenWrt:/# cat /etc/crontabs/root
 
 ### Manage host
 
-[./manage_host.sh](scripts/manage_host.sh)
+[./manage_host.sh](manage_host.sh)
 [Full documentation](manage_host.md)
 
 Manage white/black-list hostnames on the wireless interface by mapping them to their respective MAC addresses in the DHCP configuration.
@@ -66,7 +67,7 @@ root@OpenWrt:/# cat /etc/crontabs/root
 
 ### Firewall Rules Manager
 
-[./firewall_rules.sh](scripts/firewall_rules.sh)
+[./firewall_rules.sh](firewall_rules.sh)
 [Full documentation](firewall_rules.md)
 
 Manage OpenWrt firewall rules by their name.
@@ -87,6 +88,18 @@ Manage OpenWrt firewall rules by their name.
 ./firewall_rules.sh enable Allow-SSH
 ./firewall_rules.sh status Allow-SSH
 ```
+
+### Network Connectivity Checker
+[./netcheck.sh](netcheck.sh)
+[Full documentation](netcheck.md)
+
+Monitors IPv4/IPv6 connectivity on an OpenWrt router and handles SLTE/Modem reconnections as needed.
+
+#### Usage:
+Place `netcheck.sh` in `/usr/local/bin` (or another suitable location) and add it to the crontab for periodic execution:
+```bash
+* * * * * /path/to/netcheck.sh
+
 
 ---
 
