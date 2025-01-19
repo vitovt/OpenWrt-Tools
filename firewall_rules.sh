@@ -53,10 +53,10 @@ case "$ACTION" in
         ;;
     status)
         STATUS=$(uci get firewall.$RULE_INDEX.enabled 2>/dev/null)
-        if [ "$STATUS" = "1" ]; then
-            echo "Firewall rule '$RULE_NAME' is enabled."
-        else
+        if [ "$STATUS" = "0" ]; then
             echo "Firewall rule '$RULE_NAME' is disabled."
+        else
+            echo "Firewall rule '$RULE_NAME' is enabled."
         fi
         ;;
     *)
