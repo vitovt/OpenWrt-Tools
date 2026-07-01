@@ -1,149 +1,228 @@
-# Network Connectivity Checker (`netcheck.sh`)
+# Network Connectivity Checker (`check_inet.sh`)
 
-This script monitors the IPv4 and IPv6 connectivity of an OpenWrt router and performs actions to restore connectivity if issues are detected. It handles SLTE (modem) interface resets, USB modem power cycling, and partial failure scenarios. The script uses a **lock file** to prevent overlapping executions.
+`check_inet.sh` is an OpenWrt LTE connectivity watchdog. It is designed to be
+started by cron once per minute, but an atomic lock directory prevents a second
+copy from running while the previous one is still checking or recovering the
+connection.
+
+The script checks IPv4, IPv6, or both, reconnects the LTE interface when all
+configured checks fail, polls for recovery instead of sleeping for a fixed
+delay, and can power-cycle USB modem GPIO ports when the reconnect does not
+restore internet access.
 
 ---
 
 ## Features
 
-- **Connectivity Monitoring**: Periodically checks the availability of specified IPv4 and IPv6 targets.
-- **SLTE Reconnection**: Restarts the SLTE interface when connectivity issues are detected.
-- **USB Modem Reset**: Power-cycles USB modems if connectivity cannot be restored by SLTE reconnection.
-- **Partial Failure Handling**: Tracks partial failures and reconnects after a configurable number of failed checks.
-- **Lock File Protection**: Prevents multiple instances of the script from running simultaneously.
-- **Logging**: Logs actions and connectivity status to the system logger (`logger`).
+- **Repeated connectivity checks**: Runs up to `CHECK_ATTEMPTS` checks with
+  `CHECK_INTERVAL` seconds between failed attempts before taking action.
+- **IPv4/IPv6 modes**: Supports `CHECK_MODE=ipv4`, `CHECK_MODE=ipv6`, or
+  `CHECK_MODE=both`.
+- **Dual-stack policy**: With `CHECK_MODE=both`, `DUAL_STACK_POLICY=any`
+  treats either working IP stack as online, while `all` requires both.
+- **Recovery polling**: After `RECONNECT_CMD`, checks internet every
+  `RECOVERY_CHECK_INTERVAL` seconds and continues immediately when it returns.
+- **USB hard reset**: If reconnect recovery times out and
+  `HARD_RESET_ENABLED=1`, power-cycles the configured USB GPIO ports.
+- **USB reset cooldown**: `USB_RESET_COOLDOWN` prevents repeated power cycles
+  when the mobile network itself is unavailable.
+- **Post-recovery hooks**: Optional commands can run after successful reconnect
+  or USB reset recovery.
+- **Cron lock**: Uses `/tmp/netcheck.lock` as an atomic lock directory to avoid
+  overlapping cron runs.
+- **Configurable logging**: `LOG_LEVEL` controls whether the script logs debug
+  checks, recovery actions only, or nothing.
 
 ---
 
 ## Prerequisites
 
-1. OpenWrt router with the following utilities available:
-   - `ping`
-   - `ping6`
-   - `logger`
-2. Ensure the script is executable:
-   ```bash
-   chmod +x netcheck.sh
-   ```
+OpenWrt should provide these commands:
+
+- `ping`
+- `ping6`
+- `logger`
+- `ifup` when the default `RECONNECT_CMD='ifup slte'` is used
+
+For USB power-cycle support, the configured GPIO value files must be writable,
+for example:
+
+```text
+/sys/class/gpio/tp-link:power:usb1/value
+/sys/class/gpio/tp-link:power:usb2/value
+```
+
+Make the script executable:
+
+```bash
+chmod +x check_inet.sh
+```
 
 ---
 
 ## Usage
 
-1. **Place the Script**: Save `netcheck.sh` in `/usr/local/bin`, `/root`, or another suitable directory.
-2. **Add to Crontab**:
-   ```bash
-   * * * * * /path/to/netcheck.sh
-   ```
-   This ensures the script runs every minute.
+Copy the script to the router, for example as `/etc/check_inet.sh`, then add it
+to the root crontab:
 
-3. **Script Execution Flow**:
-   - The script first checks IPv4 and IPv6 connectivity.
-   - If both are reachable, it resets the failure counter and exits.
-   - If both fail:
-     1. It reconnects the SLTE interface.
-     2. If the issue persists, it power-cycles the USB modem(s).
-   - If only one protocol fails, it increments a partial failure counter and acts only after repeated failures.
+```bash
+* * * * * /etc/check_inet.sh
+```
+
+The intended execution flow is:
+
+1. Cron starts the script once per minute.
+2. The script acquires `/tmp/netcheck.lock`; if another instance is still
+   running, the new one exits.
+3. It performs up to `CHECK_ATTEMPTS` full connectivity checks with
+   `CHECK_INTERVAL` seconds between failed checks.
+4. If internet is available, it exits without action.
+5. If internet is still unavailable, it runs `RECONNECT_CMD`.
+6. After reconnect, it polls connectivity until either internet returns or
+   `RECONNECT_RECOVERY_TIMEOUT` expires.
+7. If reconnect recovery times out and `HARD_RESET_ENABLED=0`, it exits.
+8. If hard reset is enabled and the USB cooldown allows it, it power-cycles the
+   configured USB GPIO ports.
+9. After USB reset, it polls again until either internet returns or
+   `USB_RECOVERY_TIMEOUT` expires.
 
 ---
 
 ## Configuration
 
-### Variables
+Edit the configuration section at the top of `check_inet.sh`.
 
-- **Connectivity Test Targets**:
-  - IPv4: `1.1.1.1`
-  - IPv6: `2606:4700:4700::1111`
-  - Update these variables in the script if needed:
-    ```bash
-    IPV4_TEST="1.1.1.1"
-    IPV6_TEST="2606:4700:4700::1111"
-    ```
+### Logging and Locking
 
-- **Delays**:
-  - Sleep after SLTE reconnect: `140 seconds`
-  - Sleep after USB modem reset: `60 seconds`
+```sh
+LOG_LEVEL="info"
+LOG_TAG="netcheck"
+LOCK_PATH="/tmp/netcheck.lock"
+```
 
-- **Lock File**:
-  - The script uses `/tmp/netcheck.lock` to prevent multiple instances from running simultaneously.
+- `LOG_LEVEL=debug`: log every run and every connectivity check.
+- `LOG_LEVEL=info`: log reconnect/reset actions and their results.
+- `LOG_LEVEL=silent`: disable logging.
+- `LOCK_PATH` is used as a lock directory, even though the path keeps the
+  historical `.lock` name.
 
----
+### Connectivity Checks
 
-## Error Handling
+```sh
+CHECK_MODE="both"
+DUAL_STACK_POLICY="any"
+IPV4_TARGETS="1.1.1.1 8.8.8.8"
+IPV6_TARGETS="2606:4700:4700::1111 2001:4860:4860::8888"
+PING_DEVICE=""
+PING_PACKETS=1
+PING_TIMEOUT=2
+CHECK_ATTEMPTS=5
+CHECK_INTERVAL=8
+```
 
-### Lock File
+- `CHECK_MODE` selects IPv4, IPv6, or both.
+- `DUAL_STACK_POLICY` is used only with `CHECK_MODE=both`.
+- Multiple targets are tried in order; one successful target is enough for that
+  IP family.
+- `PING_DEVICE` can force pings through a specific Linux interface such as
+  `wwan0`; leave it empty to use normal routing.
+- `CHECK_ATTEMPTS=5` and `CHECK_INTERVAL=8` mean the default initial check
+  window is roughly 32 seconds after the first failed check, because there is no
+  sleep after the final failed attempt.
 
-- If another instance is running, the script will log a message and exit:
-  ```text
-  Another instance of netcheck.sh is already running. Exiting.
-  ```
+### Reconnect Recovery
 
-### Connectivity Status Logging
+```sh
+RECONNECT_CMD='ifup slte'
+RECONNECT_RECOVERY_TIMEOUT=75
+RECOVERY_CHECK_INTERVAL=5
+POST_RECONNECT_CMD=''
+```
 
-- Connectivity status is logged to the system logger:
-  ```text
-  netcheck: IPv4 ping=1, IPv6 ping=0, partial_fail_count=2
-  ```
+- `RECONNECT_CMD` is run after the initial checks fail.
+- The script does not sleep for a fixed recovery delay. It checks connectivity
+  every `RECOVERY_CHECK_INTERVAL` seconds and continues immediately once
+  internet returns.
+- `POST_RECONNECT_CMD` runs only after internet has returned following
+  `RECONNECT_CMD`.
+
+### USB Hard Reset
+
+```sh
+HARD_RESET_ENABLED=1
+USB_GPIO_ROOT="/sys/class/gpio"
+USB_POWER_PORTS="tp-link:power:usb1 tp-link:power:usb2"
+USB_POWER_OFF_TIME=2
+USB_RESET_COOLDOWN=600
+USB_RESET_STATE_FILE="/tmp/netcheck.last_usb_reset"
+USB_RECOVERY_TIMEOUT=90
+POST_USB_RESET_CMD=''
+```
+
+- `HARD_RESET_ENABLED=1` allows USB power-cycle after reconnect recovery times
+  out.
+- `USB_POWER_PORTS` can contain one or more GPIO entries separated by spaces.
+- `USB_POWER_OFF_TIME` controls how long USB power remains off.
+- `USB_RESET_COOLDOWN=600` prevents another hard reset for 10 minutes after a
+  successful power-cycle.
+- `USB_RECOVERY_TIMEOUT` is separate from `RECONNECT_RECOVERY_TIMEOUT`.
+- `POST_USB_RESET_CMD` runs only after internet has returned following USB
+  reset.
 
 ---
 
 ## Example Logs
 
-**Normal Connectivity**:
+Reconnect recovery:
+
 ```text
-netcheck: IPv4 ping=1, IPv6 ping=1, partial_fail_count=0
-netcheck: Both IPv4 and IPv6 are reachable, counter reset to 0. Nothing to do.
+netcheck: Connectivity failed for 5 checks; running reconnect: ifup slte
+netcheck: Internet restored after reconnect.
 ```
 
-**Partial Failure**:
+Reconnect timeout with hard reset disabled:
+
 ```text
-netcheck: IPv4 ping=1, IPv6 ping=0, partial_fail_count=1
-netcheck: Partial failure (one of IPv4 or IPv6 down). New count=2
+netcheck: Internet did not return within 75s after reconnect.
+netcheck: Hard USB reset is disabled; no further action.
 ```
 
-**Total Failure and Reconnection**:
+USB reset cooldown:
+
 ```text
-netcheck: IPv4 ping=0, IPv6 ping=0, partial_fail_count=0
-netcheck: Total failure (IPv4 & IPv6), reconnecting SLTE now...
-netcheck: Still no connectivity after SLTE reconnect => resetting USB modem.
-netcheck: Modem power-cycled, waiting 60s...
+netcheck: USB reset skipped: cooldown active for another 431s.
 ```
 
----
+USB recovery timeout:
 
-## Notes
-
-- Ensure the script has the correct permissions to modify network interfaces and access system files like `/sys/class/gpio/*`.
-- Adjust `SLEEP1` and `SLEEP2` values if needed for your hardware.
+```text
+netcheck: USB power reset completed; waiting up to 90s for internet.
+netcheck: Internet is still unavailable after USB reset and 90s recovery timeout.
+```
 
 ---
 
 ## Troubleshooting
 
-1. **Script Not Executing Periodically**:
-   - Ensure it is added to the crontab:
-     ```bash
-     crontab -e
-     ```
-     Add:
-     ```bash
-     * * * * * /path/to/netcheck.sh
-     ```
-
-2. **Lock File Issues**:
-   - If the script fails to remove the lock file due to an ungraceful exit, delete it manually:
-     ```bash
-     rm -f /tmp/netcheck.lock
-     ```
-
-3. **Connectivity Targets**:
-   - Test the targets manually using `ping` and `ping6` to ensure they are reachable.
+- Use `LOG_LEVEL=debug` to see every connectivity check and recovery polling
+  attempt.
+- If cron appears to skip runs, check whether an earlier instance is still
+  holding `/tmp/netcheck.lock`.
+- If the router was interrupted and no script instance is running, remove a
+  stale lock directory:
+  ```bash
+  rm -rf /tmp/netcheck.lock
+  ```
+- If USB reset is skipped, inspect `/tmp/netcheck.last_usb_reset` and the
+  `USB_RESET_COOLDOWN` value.
+- If USB reset fails, verify that every configured GPIO value file exists and is
+  writable by the script.
 
 ---
 
 ## License
 
-These scripts are redistributed under the MIT License. Feel free to modify and distribute them.
+These scripts are redistributed under the MIT License. Feel free to modify and
+distribute them.
 
 **© 2024 Vitovt ©**
-

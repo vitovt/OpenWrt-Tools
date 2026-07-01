@@ -90,16 +90,18 @@ Manage OpenWrt firewall rules by their name.
 ```
 
 ### Network Connectivity Checker
-[./netcheck.sh](netcheck.sh)
-[Full documentation](netcheck.md)
+[./check_inet.sh](check_inet.sh)
+[Full documentation](check_inet.md)
 
-Monitors IPv4/IPv6 connectivity on an OpenWrt router and handles SLTE/Modem reconnections as needed.
+Monitors IPv4/IPv6 connectivity on an OpenWrt router and restores LTE connectivity with staged recovery actions.
 
 #### Usage:
-Place `netcheck.sh` in `/usr/local/bin` (or another suitable location) and add it to the crontab for periodic execution:
+Place `check_inet.sh` in `/etc` (or another suitable location), make it executable, and run it from cron once per minute:
 ```bash
-* * * * * /path/to/netcheck.sh
+* * * * * /etc/check_inet.sh
+```
 
+The script performs several connectivity checks before reconnecting the LTE interface. After `ifup slte`, it polls for recovery every few seconds and continues as soon as internet access returns. If recovery times out and hard reset is enabled, it power-cycles the configured USB modem ports, then waits for internet again with a separate USB recovery timeout and cooldown to avoid reset loops.
 
 ---
 
