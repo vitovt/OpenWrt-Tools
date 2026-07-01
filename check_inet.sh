@@ -86,6 +86,14 @@ RECONNECT_RECOVERY_TIMEOUT=75
 # Pause between recovery checks.
 RECOVERY_CHECK_INTERVAL=5
 
+# Fast USB reset when the modem reports a physical COM/USB fault after
+# RECONNECT_CMD.
+#
+# This avoids waiting for RECONNECT_RECOVERY_TIMEOUT when the modem is present
+# but no longer accepts commands.
+MODEM_FAULT_FAST_RESET_ENABLED=1
+MODEM_FAULT_LOG_PATTERNS='Could not write to COM device|Failed to get modem information|nonzero urb status received: -71|wdm_int_callback - 0 bytes'
+
 # Optional command executed only after internet has returned following
 # RECONNECT_CMD.
 #
@@ -142,6 +150,10 @@ export PATH
 LOCK_HELD=0
 LAST_IPV4="-"
 LAST_IPV6="-"
+MODEM_FAULT_DETECTION_ACTIVE=0
+MODEM_FAULT_LOG_START_LINE=0
+MODEM_FAULT_LAST_MATCH=""
+MODEM_FAULT_ABORT_ENABLED=0
 
 ###############################################################################
 # Logging
@@ -236,12 +248,28 @@ validate_config() {
             ;;
     esac
 
+    case "$MODEM_FAULT_FAST_RESET_ENABLED" in
+        0|1)
+            ;;
+        *)
+            log_info \
+                "Invalid MODEM_FAULT_FAST_RESET_ENABLED=" \
+                "'$MODEM_FAULT_FAST_RESET_ENABLED'."
+            return 1
+            ;;
+    esac
+
     return 0
 }
 
 ###############################################################################
 # Ping functions
 ###############################################################################
+
+modem_fault_abort_requested() {
+    [ "$MODEM_FAULT_ABORT_ENABLED" -eq 1 ] || return 1
+    modem_fault_detected
+}
 
 ping_ipv4_target() {
     target="$1"
@@ -279,20 +307,36 @@ ping_ipv6_target() {
 
 check_ipv4() {
     for target in $IPV4_TARGETS; do
+        if modem_fault_abort_requested; then
+            return 2
+        fi
+
         if ping_ipv4_target "$target"; then
             return 0
         fi
     done
+
+    if modem_fault_abort_requested; then
+        return 2
+    fi
 
     return 1
 }
 
 check_ipv6() {
     for target in $IPV6_TARGETS; do
+        if modem_fault_abort_requested; then
+            return 2
+        fi
+
         if ping_ipv6_target "$target"; then
             return 0
         fi
     done
+
+    if modem_fault_abort_requested; then
+        return 2
+    fi
 
     return 1
 }
@@ -307,7 +351,14 @@ check_connectivity() {
 
     case "$CHECK_MODE" in
         ipv4)
-            if check_ipv4; then
+            check_ipv4
+            rc=$?
+
+            if [ "$rc" -eq 2 ]; then
+                return 2
+            fi
+
+            if [ "$rc" -eq 0 ]; then
                 LAST_IPV4=1
             else
                 LAST_IPV4=0
@@ -317,7 +368,14 @@ check_connectivity() {
             ;;
 
         ipv6)
-            if check_ipv6; then
+            check_ipv6
+            rc=$?
+
+            if [ "$rc" -eq 2 ]; then
+                return 2
+            fi
+
+            if [ "$rc" -eq 0 ]; then
                 LAST_IPV6=1
             else
                 LAST_IPV6=0
@@ -327,13 +385,27 @@ check_connectivity() {
             ;;
 
         both)
-            if check_ipv4; then
+            check_ipv4
+            rc=$?
+
+            if [ "$rc" -eq 2 ]; then
+                return 2
+            fi
+
+            if [ "$rc" -eq 0 ]; then
                 LAST_IPV4=1
             else
                 LAST_IPV4=0
             fi
 
-            if check_ipv6; then
+            check_ipv6
+            rc=$?
+
+            if [ "$rc" -eq 2 ]; then
+                return 2
+            fi
+
+            if [ "$rc" -eq 0 ]; then
                 LAST_IPV6=1
             else
                 LAST_IPV6=0
@@ -384,19 +456,136 @@ initial_checks_pass() {
 # Recovery polling
 ###############################################################################
 
+begin_modem_fault_detection() {
+    MODEM_FAULT_DETECTION_ACTIVE=0
+    MODEM_FAULT_LOG_START_LINE=0
+    MODEM_FAULT_LAST_MATCH=""
+
+    [ "$MODEM_FAULT_FAST_RESET_ENABLED" -eq 1 ] || return 0
+    [ -n "$MODEM_FAULT_LOG_PATTERNS" ] || return 0
+
+    if ! command -v logread >/dev/null 2>&1; then
+        log_debug "logread is not available; modem fault detection disabled."
+        return 0
+    fi
+
+    MODEM_FAULT_LOG_START_LINE="$(
+        logread 2>/dev/null |
+            wc -l |
+            tr -d ' '
+    )"
+
+    case "$MODEM_FAULT_LOG_START_LINE" in
+        ''|*[!0-9]*)
+            log_debug \
+                "Could not capture logread position; " \
+                "modem fault detection disabled."
+            MODEM_FAULT_LOG_START_LINE=0
+            return 0
+            ;;
+    esac
+
+    MODEM_FAULT_DETECTION_ACTIVE=1
+    log_debug \
+        "Modem fault detection enabled from log line " \
+        "$MODEM_FAULT_LOG_START_LINE."
+}
+
+modem_fault_detected() {
+    [ "$MODEM_FAULT_DETECTION_ACTIVE" -eq 1 ] || return 1
+
+    next_line=$((MODEM_FAULT_LOG_START_LINE + 1))
+
+    MODEM_FAULT_LAST_MATCH="$(
+        logread 2>/dev/null |
+            tail -n +"$next_line" |
+            grep -E "$MODEM_FAULT_LOG_PATTERNS" |
+            sed -n '1p'
+    )"
+
+    [ -n "$MODEM_FAULT_LAST_MATCH" ]
+}
+
+sleep_until_next_recovery_check() {
+    deadline="$1"
+    detect_modem_fault="$2"
+
+    sleep_deadline=$(( $(date +%s) + RECOVERY_CHECK_INTERVAL ))
+
+    while :; do
+        now="$(date +%s)"
+
+        [ "$now" -lt "$deadline" ] || return 0
+        [ "$now" -lt "$sleep_deadline" ] || return 0
+
+        sleep_seconds=$((sleep_deadline - now))
+
+        if [ "$detect_modem_fault" = "1" ] &&
+            [ "$MODEM_FAULT_DETECTION_ACTIVE" -eq 1 ] &&
+            [ "$sleep_seconds" -gt 1 ]
+        then
+            sleep_seconds=1
+        fi
+
+        [ "$sleep_seconds" -gt 0 ] || sleep_seconds=1
+
+        sleep "$sleep_seconds"
+
+        if [ "$detect_modem_fault" = "1" ] &&
+            modem_fault_detected
+        then
+            return 2
+        fi
+    done
+}
+
 wait_until_online() {
     timeout="$1"
     phase="$2"
+    detect_modem_fault="${3:-0}"
 
     deadline=$(( $(date +%s) + timeout ))
 
     while :; do
-        if check_connectivity; then
+        if [ "$detect_modem_fault" = "1" ] &&
+            modem_fault_detected
+        then
+            log_info \
+                "$phase: modem fault detected; " \
+                "skipping recovery timeout: $MODEM_FAULT_LAST_MATCH"
+
+            return 2
+        fi
+
+        MODEM_FAULT_ABORT_ENABLED="$detect_modem_fault"
+        check_connectivity
+        connectivity_rc=$?
+        MODEM_FAULT_ABORT_ENABLED=0
+
+        if [ "$connectivity_rc" -eq 2 ]; then
+            log_info \
+                "$phase: modem fault detected; " \
+                "skipping recovery timeout: $MODEM_FAULT_LAST_MATCH"
+
+            return 2
+        fi
+
+        if [ "$connectivity_rc" -eq 0 ]; then
             log_debug \
                 "$phase: online " \
                 "(IPv4=$LAST_IPV4, IPv6=$LAST_IPV6)."
 
             return 0
+        fi
+
+        if [ "$detect_modem_fault" = "1" ] &&
+            modem_fault_detected
+        then
+            log_info \
+                "$phase: modem fault detected; " \
+                "skipping recovery timeout: $MODEM_FAULT_LAST_MATCH"
+
+            return 2
         fi
 
         now="$(date +%s)"
@@ -413,7 +602,18 @@ wait_until_online() {
             "$phase: still offline " \
             "(IPv4=$LAST_IPV4, IPv6=$LAST_IPV6); retrying."
 
-        sleep "$RECOVERY_CHECK_INTERVAL"
+        sleep_until_next_recovery_check \
+            "$deadline" \
+            "$detect_modem_fault"
+        rc=$?
+
+        if [ "$rc" -eq 2 ]; then
+            log_info \
+                "$phase: modem fault detected; " \
+                "skipping recovery timeout: $MODEM_FAULT_LAST_MATCH"
+
+            return 2
+        fi
     done
 }
 
@@ -540,12 +740,17 @@ main() {
         "Connectivity failed for $CHECK_ATTEMPTS checks; " \
         "running reconnect: $RECONNECT_CMD"
 
+    begin_modem_fault_detection
+
     run_command "$RECONNECT_CMD" "Reconnect command"
 
-    if wait_until_online \
+    wait_until_online \
         "$RECONNECT_RECOVERY_TIMEOUT" \
-        "After reconnect"
-    then
+        "After reconnect" \
+        "$MODEM_FAULT_FAST_RESET_ENABLED"
+    reconnect_wait_rc=$?
+
+    if [ "$reconnect_wait_rc" -eq 0 ]; then
         log_info "Internet restored after reconnect."
 
         run_command \
@@ -555,9 +760,15 @@ main() {
         exit 0
     fi
 
-    log_info \
-        "Internet did not return within " \
-        "${RECONNECT_RECOVERY_TIMEOUT}s after reconnect."
+    if [ "$reconnect_wait_rc" -eq 2 ]; then
+        log_info \
+            "Starting USB reset immediately because the modem " \
+            "reported a COM/USB fault after reconnect."
+    else
+        log_info \
+            "Internet did not return within " \
+            "${RECONNECT_RECOVERY_TIMEOUT}s after reconnect."
+    fi
 
     if [ "$HARD_RESET_ENABLED" -ne 1 ]; then
         log_info "Hard USB reset is disabled; no further action."

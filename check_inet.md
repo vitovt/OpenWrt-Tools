@@ -22,6 +22,9 @@ restore internet access.
   treats either working IP stack as online, while `all` requires both.
 - **Recovery polling**: After `RECONNECT_CMD`, checks internet every
   `RECOVERY_CHECK_INTERVAL` seconds and continues immediately when it returns.
+- **Fast modem-fault reset**: While waiting after reconnect, watches new
+  `logread` entries for COM/USB modem errors and skips directly to USB reset
+  when the modem stops accepting commands.
 - **USB hard reset**: If reconnect recovery times out and
   `HARD_RESET_ENABLED=1`, power-cycles the configured USB GPIO ports.
 - **USB reset cooldown**: `USB_RESET_COOLDOWN` prevents repeated power cycles
@@ -43,6 +46,7 @@ OpenWrt should provide these commands:
 - `ping6`
 - `logger`
 - `ifup` when the default `RECONNECT_CMD='ifup slte'` is used
+- `logread` when fast modem-fault reset is enabled
 
 For USB power-cycle support, the configured GPIO value files must be writable,
 for example:
@@ -80,10 +84,12 @@ The intended execution flow is:
 5. If internet is still unavailable, it runs `RECONNECT_CMD`.
 6. After reconnect, it polls connectivity until either internet returns or
    `RECONNECT_RECOVERY_TIMEOUT` expires.
-7. If reconnect recovery times out and `HARD_RESET_ENABLED=0`, it exits.
-8. If hard reset is enabled and the USB cooldown allows it, it power-cycles the
+7. If matching COM/USB modem errors appear in `logread`, it skips the remaining
+   reconnect timeout and proceeds to USB reset immediately.
+8. If reconnect recovery times out and `HARD_RESET_ENABLED=0`, it exits.
+9. If hard reset is enabled and the USB cooldown allows it, it power-cycles the
    configured USB GPIO ports.
-9. After USB reset, it polls again until either internet returns or
+10. After USB reset, it polls again until either internet returns or
    `USB_RECOVERY_TIMEOUT` expires.
 
 ---
@@ -136,6 +142,8 @@ CHECK_INTERVAL=8
 RECONNECT_CMD='ifup slte'
 RECONNECT_RECOVERY_TIMEOUT=75
 RECOVERY_CHECK_INTERVAL=5
+MODEM_FAULT_FAST_RESET_ENABLED=1
+MODEM_FAULT_LOG_PATTERNS='Could not write to COM device|Failed to get modem information|nonzero urb status received: -71|wdm_int_callback - 0 bytes'
 POST_RECONNECT_CMD=''
 ```
 
@@ -143,6 +151,14 @@ POST_RECONNECT_CMD=''
 - The script does not sleep for a fixed recovery delay. It checks connectivity
   every `RECOVERY_CHECK_INTERVAL` seconds and continues immediately once
   internet returns.
+- `MODEM_FAULT_FAST_RESET_ENABLED=1` starts a `logread` window just before
+  `RECONNECT_CMD`, then watches only new log entries during reconnect recovery.
+- `MODEM_FAULT_LOG_PATTERNS` is an extended grep pattern. The default catches
+  failed COM writes, failed modem information reads, USB `-71` URB errors, and
+  zero-byte WDM callbacks.
+- When a modem fault is detected, the script skips `RECONNECT_RECOVERY_TIMEOUT`
+  and goes directly to the existing USB reset path. `HARD_RESET_ENABLED` and
+  `USB_RESET_COOLDOWN` still apply.
 - `POST_RECONNECT_CMD` runs only after internet has returned following
   `RECONNECT_CMD`.
 
@@ -185,6 +201,13 @@ Reconnect timeout with hard reset disabled:
 ```text
 netcheck: Internet did not return within 75s after reconnect.
 netcheck: Hard USB reset is disabled; no further action.
+```
+
+Fast reset after modem fault:
+
+```text
+netcheck: After reconnect: modem fault detected; skipping recovery timeout: ...
+netcheck: Starting USB reset immediately because the modem reported a COM/USB fault after reconnect.
 ```
 
 USB reset cooldown:

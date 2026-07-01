@@ -101,7 +101,7 @@ Place `check_inet.sh` in `/etc` (or another suitable location), make it executab
 * * * * * /etc/check_inet.sh
 ```
 
-The script performs several connectivity checks before reconnecting the LTE interface. After `ifup slte`, it polls for recovery every few seconds and continues as soon as internet access returns. If recovery times out and hard reset is enabled, it power-cycles the configured USB modem ports, then waits for internet again with a separate USB recovery timeout and cooldown to avoid reset loops.
+The script performs several connectivity checks before reconnecting the LTE interface. After `ifup slte`, it polls for recovery every few seconds and continues as soon as internet access returns. If the modem reports COM/USB errors in `logread`, the script skips the reconnect timeout and starts USB reset immediately. If normal recovery times out and hard reset is enabled, it also power-cycles the configured USB modem ports, then waits for internet again with a separate USB recovery timeout and cooldown to avoid reset loops.
 
 ---
 
